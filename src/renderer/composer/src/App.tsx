@@ -2,24 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppSettings, CorrectionStyle } from '@shared/types'
 import SettingsPanel from './SettingsPanel'
 
-const CORRECTION_DEBOUNCE_MS = 700
-const SUGGEST_DEBOUNCE_MS = 900
+const PROCESS_DEBOUNCE_MS = 450
 
 export default function App(): JSX.Element {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [draft, setDraft] = useState('')
   const [corrected, setCorrected] = useState<string | null>(null)
-  const [correcting, setCorrecting] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
-  const [suggesting, setSuggesting] = useState(false)
+  const [processing, setProcessing] = useState(false)
   const [targetLabel, setTargetLabel] = useState<string | null>(null)
   const [status, setStatus] = useState<{ kind: 'info' | 'error'; text: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const correctionSeq = useRef(0)
-  const suggestSeq = useRef(0)
+  const processSeq = useRef(0)
 
   useEffect(() => {
     window.sakuraApi.getSettings().then(setSettings)
@@ -38,49 +35,34 @@ export default function App(): JSX.Element {
   const apiReady = Boolean(settings?.apiBaseUrl && settings?.apiKey)
 
   useEffect(() => {
-    if (!apiReady || !draft.trim()) {
-      setCorrected(null)
-      return
-    }
-    const seq = ++correctionSeq.current
-    const timer = setTimeout(async () => {
-      setCorrecting(true)
-      try {
-        const res = await window.sakuraApi.correctText({
-          draft,
-          style: settings!.correctionStyle
-        })
-        if (seq === correctionSeq.current) {
-          setCorrected(res.changed ? res.corrected : null)
-        }
-      } catch {
-        // 校正はベストエフォート。失敗しても入力は継続できる。
-      } finally {
-        if (seq === correctionSeq.current) setCorrecting(false)
-      }
-    }, CORRECTION_DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, apiReady])
-
-  useEffect(() => {
     if (!apiReady) {
+      setCorrected(null)
       setSuggestions([])
       return
     }
-    const seq = ++suggestSeq.current
+    // draftが空でも「次の一言」候補は履歴から生成できるため、ここでは早期returnしない。
+    // （そうしないとprocessSeqが進まず、直前の入力に対する古い応答がこの状態を上書きしてしまう）
+    const seq = ++processSeq.current
     const timer = setTimeout(async () => {
-      setSuggesting(true)
+      setProcessing(true)
       try {
         const history = settings?.contextHistory ?? []
-        const res = await window.sakuraApi.suggestNext({ history, draft })
-        if (seq === suggestSeq.current) setSuggestions(res.suggestions)
+        const res = await window.sakuraApi.processDraft({
+          draft,
+          history,
+          style: settings!.correctionStyle,
+          includeSuggestions: true
+        })
+        if (seq === processSeq.current) {
+          setCorrected(res.changed ? res.corrected : null)
+          setSuggestions(res.suggestions)
+        }
       } catch {
-        // 提案もベストエフォート。
+        // 校正・提案はベストエフォート。失敗しても入力は継続できる。
       } finally {
-        if (seq === suggestSeq.current) setSuggesting(false)
+        if (seq === processSeq.current) setProcessing(false)
       }
-    }, SUGGEST_DEBOUNCE_MS)
+    }, PROCESS_DEBOUNCE_MS)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, apiReady])
@@ -108,7 +90,12 @@ export default function App(): JSX.Element {
     let finalText = draft
     try {
       if (apiReady) {
-        const res = await window.sakuraApi.correctText({ draft, style: settings.correctionStyle })
+        const res = await window.sakuraApi.processDraft({
+          draft,
+          history: [],
+          style: settings.correctionStyle,
+          includeSuggestions: false
+        })
         finalText = res.corrected || draft
       }
     } catch {
@@ -187,7 +174,6 @@ export default function App(): JSX.Element {
           <span className="text">{corrected}</span>
         </button>
       )}
-      {correcting && !corrected && <div className="hint">校正中…</div>}
 
       {suggestions.length > 0 && (
         <div className="suggestions">
@@ -198,7 +184,8 @@ export default function App(): JSX.Element {
           ))}
         </div>
       )}
-      {suggesting && suggestions.length === 0 && <div className="hint">次の一言を考え中…</div>}
+
+      {processing && !corrected && suggestions.length === 0 && <div className="hint">考え中…</div>}
 
       {!apiReady && (
         <div className="hint warn">

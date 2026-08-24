@@ -10,22 +10,17 @@ export interface AppSettings {
 
 export type CorrectionStyle = 'natural' | 'polite' | 'casual'
 
-export interface CorrectTextRequest {
+export interface ProcessDraftRequest {
   draft: string
+  history: string[]
   style: CorrectionStyle
+  /** falseの場合、次の一言候補は生成しない（送信直前の最終校正など、速度優先の場面用） */
+  includeSuggestions: boolean
 }
 
-export interface CorrectTextResponse {
+export interface ProcessDraftResponse {
   corrected: string
   changed: boolean
-}
-
-export interface SuggestNextRequest {
-  history: string[]
-  draft: string
-}
-
-export interface SuggestNextResponse {
   suggestions: string[]
 }
 

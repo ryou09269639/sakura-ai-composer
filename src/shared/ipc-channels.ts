@@ -1,10 +1,8 @@
 export const IpcChannels = {
-  CorrectText: 'ai:correct-text',
-  SuggestNext: 'ai:suggest-next',
+  ProcessDraft: 'ai:process-draft',
   InsertText: 'insert:text',
   GetSettings: 'settings:get',
   SaveSettings: 'settings:save',
   HideComposer: 'composer:hide',
-  ComposerShown: 'composer:shown',
-  ReportInsertResult: 'insert:result'
+  ComposerShown: 'composer:shown'
 } as const

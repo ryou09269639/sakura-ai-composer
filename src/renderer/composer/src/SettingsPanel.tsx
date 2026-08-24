@@ -75,7 +75,7 @@ export default function SettingsPanel({ initial, onClose, onSaved }: Props): JSX
       </label>
 
       <label className="field">
-        <span>呼び出しホットキー（変更後は再起動が必要）</span>
+        <span>呼び出しホットキー（保存すると即座に反映されます）</span>
         <input value={toggleHotkey} onChange={(e) => setToggleHotkey(e.target.value)} />
       </label>
 

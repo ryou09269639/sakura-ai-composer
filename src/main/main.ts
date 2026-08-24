@@ -1,16 +1,21 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, nativeImage, screen } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  Tray,
+  Menu,
+  nativeImage,
+  screen,
+  Notification
+} from 'electron'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
 import { IpcChannels } from '@shared/ipc-channels'
-import type {
-  AppSettings,
-  CorrectTextRequest,
-  InsertTextRequest,
-  InsertTextResult,
-  SuggestNextRequest
-} from '@shared/types'
+import type { AppSettings, InsertTextRequest, InsertTextResult, ProcessDraftRequest } from '@shared/types'
+import { toErrorMessage } from '@shared/errors'
 import { getSettings, saveSettings, pushHistory } from './settings'
-import { correctText, suggestNext } from '@ai/client'
+import { processDraft } from '@ai/client'
 import { captureActiveWindow, insertTextIntoWindow } from './insert'
 import type { ActiveWindowHandle } from './platform'
 
@@ -19,8 +24,30 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 let composerWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let lastActiveWindow: ActiveWindowHandle | null = null
+let registeredHotkey: string | null = null
 
 const isDev = !app.isPackaged
+
+function notify(title: string, body: string): void {
+  if (!Notification.isSupported()) return
+  new Notification({ title, body }).show()
+}
+
+function registerHotkey(hotkey: string): boolean {
+  if (registeredHotkey) {
+    globalShortcut.unregister(registeredHotkey)
+    registeredHotkey = null
+  }
+  const ok = globalShortcut.register(hotkey, () => {
+    toggleComposer()
+  })
+  if (ok) {
+    registeredHotkey = hotkey
+  } else {
+    console.error(`[main] グローバルホットキーの登録に失敗しました: ${hotkey}`)
+  }
+  return ok
+}
 
 function createComposerWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -81,19 +108,39 @@ async function toggleComposer(): Promise<void> {
 function registerIpcHandlers(): void {
   ipcMain.handle(IpcChannels.GetSettings, (): AppSettings => getSettings())
 
-  ipcMain.handle(IpcChannels.SaveSettings, (_e, patch: Partial<AppSettings>): AppSettings =>
-    saveSettings(patch)
-  )
-
-  ipcMain.handle(IpcChannels.CorrectText, async (_e, req: CorrectTextRequest) => {
-    const settings = getSettings()
-    return correctText({ ...settings, correctionStyle: req.style }, req.draft)
+  ipcMain.handle(IpcChannels.SaveSettings, (_e, patch: Partial<AppSettings>): AppSettings => {
+    const saved = saveSettings(patch)
+    if (patch.toggleHotkey && patch.toggleHotkey !== registeredHotkey) {
+      const previous = registeredHotkey
+      if (!registerHotkey(patch.toggleHotkey)) {
+        notify(
+          'ホットキー登録に失敗しました',
+          `「${patch.toggleHotkey}」は他のアプリと競合している可能性があります。設定から別のキーをお試しください。`
+        )
+        if (previous) registerHotkey(previous)
+      }
+    }
+    return saved
   })
 
-  ipcMain.handle(IpcChannels.SuggestNext, async (_e, req: SuggestNextRequest) => {
-    const settings = getSettings()
-    const suggestions = await suggestNext(settings, req.history, req.draft)
-    return { suggestions }
+  let inFlightProcessController: AbortController | null = null
+
+  ipcMain.handle(IpcChannels.ProcessDraft, async (_e, req: ProcessDraftRequest) => {
+    inFlightProcessController?.abort()
+    const controller = new AbortController()
+    inFlightProcessController = controller
+    try {
+      const settings = getSettings()
+      return await processDraft(
+        { ...settings, correctionStyle: req.style },
+        req.history,
+        req.draft,
+        req.includeSuggestions,
+        controller.signal
+      )
+    } finally {
+      if (inFlightProcessController === controller) inFlightProcessController = null
+    }
   })
 
   ipcMain.handle(
@@ -111,7 +158,7 @@ function registerIpcHandlers(): void {
       } catch (err) {
         composerWindow?.show()
         composerWindow?.focus()
-        return { ok: false, message: err instanceof Error ? err.message : String(err) }
+        return { ok: false, message: toErrorMessage(err) }
       }
     }
   )
@@ -135,24 +182,33 @@ function createTray(): void {
   tray.on('click', () => toggleComposer())
 }
 
-app.whenReady().then(() => {
-  composerWindow = createComposerWindow()
-  registerIpcHandlers()
-  createTray()
-
-  const settings = getSettings()
-  const registered = globalShortcut.register(settings.toggleHotkey, () => {
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
     toggleComposer()
   })
-  if (!registered) {
-    console.error(`[main] グローバルホットキーの登録に失敗しました: ${settings.toggleHotkey}`)
-  }
-})
 
-app.on('will-quit', () => {
-  globalShortcut.unregisterAll()
-})
+  app.whenReady().then(() => {
+    composerWindow = createComposerWindow()
+    registerIpcHandlers()
+    createTray()
 
-app.on('window-all-closed', () => {
-  // トレイ常駐アプリのため、ウィンドウを閉じてもアプリは終了しない
-})
+    const settings = getSettings()
+    if (!registerHotkey(settings.toggleHotkey)) {
+      notify(
+        'ホットキー登録に失敗しました',
+        `「${settings.toggleHotkey}」は他のアプリと競合している可能性があります。トレイアイコンのクリックでも呼び出せます。設定から別のキーに変更できます。`
+      )
+    }
+  })
+
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll()
+  })
+
+  app.on('window-all-closed', () => {
+    // トレイ常駐アプリのため、ウィンドウを閉じてもアプリは終了しない
+  })
+}

@@ -1,4 +1,5 @@
 import { clipboard } from 'electron'
+import { toErrorMessage } from '@shared/errors'
 import { getPlatformDriver, type ActiveWindowHandle } from './platform'
 
 export async function captureActiveWindow(): Promise<ActiveWindowHandle | null> {
@@ -19,7 +20,12 @@ export async function insertTextIntoWindow(
   clipboard.writeText(text)
   try {
     await getPlatformDriver().restoreAndPaste(handle, pressEnter)
-  } finally {
-    setTimeout(() => clipboard.writeText(previousClipboard), 1000)
+  } catch (err) {
+    // 自動貼り付けに失敗した場合、ユーザーが手動でCtrl+V/Cmd+Vできるようクリップボードは書き換えない。
+    throw new Error(
+      `${toErrorMessage(err)}\n（テキストはクリップボードにコピー済みです。手動で貼り付けてください）`
+    )
   }
+  // 成功時のみ、元のクリップボード内容へ復元する。
+  setTimeout(() => clipboard.writeText(previousClipboard), 1000)
 }
