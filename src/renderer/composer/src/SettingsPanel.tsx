@@ -20,13 +20,16 @@ export default function SettingsPanel({ initial, onClose, onSaved }: Props): JSX
   )
   const [saving, setSaving] = useState(false)
 
+  const hotkeyError = toggleHotkey.trim() ? null : 'ホットキーを入力してください'
+
   const save = async (): Promise<void> => {
+    if (hotkeyError) return
     setSaving(true)
     const saved = await window.sakuraApi.saveSettings({
       apiBaseUrl: apiBaseUrl.trim(),
       apiKey: apiKey.trim(),
       model: model.trim(),
-      toggleHotkey,
+      toggleHotkey: toggleHotkey.trim(),
       autoPressEnterAfterInsert,
       correctionStyle
     })
@@ -77,6 +80,7 @@ export default function SettingsPanel({ initial, onClose, onSaved }: Props): JSX
       <label className="field">
         <span>呼び出しホットキー（保存すると即座に反映されます）</span>
         <input value={toggleHotkey} onChange={(e) => setToggleHotkey(e.target.value)} />
+        {hotkeyError && <span className="field-error">{hotkeyError}</span>}
       </label>
 
       <label className="field checkbox">
@@ -89,7 +93,7 @@ export default function SettingsPanel({ initial, onClose, onSaved }: Props): JSX
       </label>
 
       <div className="footer">
-        <button className="send" onClick={save} disabled={saving}>
+        <button className="send" onClick={save} disabled={saving || Boolean(hotkeyError)}>
           {saving ? '保存中…' : '保存'}
         </button>
       </div>

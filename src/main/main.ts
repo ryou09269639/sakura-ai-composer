@@ -34,13 +34,23 @@ function notify(title: string, body: string): void {
 }
 
 function registerHotkey(hotkey: string): boolean {
+  if (!hotkey.trim()) return false
+
   if (registeredHotkey) {
     globalShortcut.unregister(registeredHotkey)
     registeredHotkey = null
   }
-  const ok = globalShortcut.register(hotkey, () => {
-    toggleComposer()
-  })
+  // 不正な形式のaccelerator文字列（例: 空白のみ、存在しないキー名）はElectronが
+  // 同期的にthrowすることがあるため、メインプロセスを落とさないようここで吸収する。
+  let ok: boolean
+  try {
+    ok = globalShortcut.register(hotkey, () => {
+      toggleComposer()
+    })
+  } catch (err) {
+    console.error(`[main] グローバルホットキーの登録中にエラーが発生しました: ${hotkey}`, err)
+    ok = false
+  }
   if (ok) {
     registeredHotkey = hotkey
   } else {
