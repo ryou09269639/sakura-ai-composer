@@ -1,0 +1,24 @@
+appId: com.ryotosakata.sakura-ai-composer
+productName: さくらAIコンポーザー
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**/*
+extraResources: []
+mac:
+  icon: build/icon.png
+  target:
+    - dmg
+  extendInfo:
+    NSAppleEventsUsageDescription: >-
+      チャット欄への自動貼り付け機能のため、他のアプリケーションを操作する許可が必要です。
+win:
+  icon: build/icon.png
+  target:
+    - nsis
+linux:
+  icon: build/icon.png
+  target:
+    - AppImage
+  category: Utility
