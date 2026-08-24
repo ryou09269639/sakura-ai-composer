@@ -69,7 +69,7 @@ function createComposerWindow(): BrowserWindow {
     alwaysOnTop: true,
     skipTaskbar: true,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false
     }
