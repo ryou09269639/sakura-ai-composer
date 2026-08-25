@@ -52,6 +52,8 @@ export default function App(): JSX.Element {
     }
     setDraft('')
     setStatus({ kind: 'info', text: result.message })
+    // ウィンドウは閉じずに残るので、続けて次の文章を打てるようフォーカスを戻す
+    requestAnimationFrame(() => textareaRef.current?.focus())
   }, [draft, submitting, settings, apiReady])
 
   const onKeyDown = useCallback(

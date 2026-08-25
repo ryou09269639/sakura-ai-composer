@@ -145,9 +145,19 @@ function registerIpcHandlers(): void {
         return { ok: false, message: '挿入先のウィンドウ情報がありません。もう一度ホットキーで呼び出してください。' }
       }
       try {
-        composerWindow?.hide()
-        await new Promise((resolve) => setTimeout(resolve, 60))
+        // Windows(SetForegroundWindow)・macOS(frontmost指定)・Linux X11(windowactivate)は
+        // いずれもウィンドウIDやアプリ名を指定して直接フォーカスを戻すため、コンポーザー窓を
+        // 隠す必要がない。Waylandだけはウィンドウ単位でフォーカスを指定するAPIが無く、
+        // 「隠す→コンポジタが直前のウィンドウへ戻す」方式に頼っているため、そこだけ隠す。
+        const needsHideForPaste = lastActiveWindow.platform === 'linux' && lastActiveWindow.id === 'wayland'
+        if (needsHideForPaste) {
+          composerWindow?.hide()
+          await new Promise((resolve) => setTimeout(resolve, 60))
+        }
         await insertTextIntoWindow(lastActiveWindow, req.text, req.pressEnter)
+        // 連続で入力できるよう、貼り付け後はウィンドウを表示してフォーカスを戻す
+        composerWindow?.show()
+        composerWindow?.focus()
         return { ok: true, message: '挿入しました。' }
       } catch (err) {
         composerWindow?.show()
@@ -196,6 +206,18 @@ if (!gotSingleInstanceLock) {
         `「${settings.toggleHotkey}」は他のアプリと競合している可能性があります。トレイアイコンのクリックでも呼び出せます。設定から別のキーに変更できます。`
       )
     }
+
+    // ホットキーを押さなくても最初から使えるよう、起動時点でコンポーザーを表示しておく
+    composerWindow.webContents.once('did-finish-load', () => {
+      void (async () => {
+        if (!composerWindow) return
+        lastActiveWindow = await captureActiveWindow()
+        positionNearCursor(composerWindow)
+        composerWindow.show()
+        composerWindow.focus()
+        composerWindow.webContents.send(IpcChannels.ComposerShown, lastActiveWindow?.label ?? null)
+      })()
+    })
   })
 
   app.on('will-quit', () => {
