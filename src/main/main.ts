@@ -12,16 +12,10 @@ import {
 import { join } from 'path'
 import { fileURLToPath } from 'url'
 import { IpcChannels } from '@shared/ipc-channels'
-import type {
-  AppSettings,
-  CorrectRequest,
-  InsertTextRequest,
-  InsertTextResult,
-  PredictRequest
-} from '@shared/types'
+import type { AppSettings, CorrectRequest, InsertTextRequest, InsertTextResult } from '@shared/types'
 import { toErrorMessage } from '@shared/errors'
-import { getSettings, saveSettings, pushHistory } from './settings'
-import { correctText, predictCompletion } from '@ai/client'
+import { getSettings, saveSettings } from './settings'
+import { correctText } from '@ai/client'
 import { captureActiveWindow, insertTextIntoWindow } from './insert'
 import type { ActiveWindowHandle } from './platform'
 
@@ -139,21 +133,6 @@ function registerIpcHandlers(): void {
     return saved
   })
 
-  let inFlightPredictController: AbortController | null = null
-
-  ipcMain.handle(IpcChannels.Predict, async (_e, req: PredictRequest) => {
-    inFlightPredictController?.abort()
-    const controller = new AbortController()
-    inFlightPredictController = controller
-    try {
-      const settings = getSettings()
-      const completion = await predictCompletion(settings, req.history, req.draft, req.style, controller.signal)
-      return { completion }
-    } finally {
-      if (inFlightPredictController === controller) inFlightPredictController = null
-    }
-  })
-
   ipcMain.handle(IpcChannels.Correct, async (_e, req: CorrectRequest) => {
     const settings = getSettings()
     return await correctText(settings, req.draft, req.style)
@@ -169,7 +148,6 @@ function registerIpcHandlers(): void {
         composerWindow?.hide()
         await new Promise((resolve) => setTimeout(resolve, 60))
         await insertTextIntoWindow(lastActiveWindow, req.text, req.pressEnter)
-        pushHistory(req.text)
         return { ok: true, message: '挿入しました。' }
       } catch (err) {
         composerWindow?.show()

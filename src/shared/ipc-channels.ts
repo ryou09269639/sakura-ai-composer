@@ -1,5 +1,4 @@
 export const IpcChannels = {
-  Predict: 'ai:predict',
   Correct: 'ai:correct',
   InsertText: 'insert:text',
   GetSettings: 'settings:get',

@@ -9,7 +9,6 @@ const defaults: AppSettings = {
   toggleHotkey: 'Alt+Space',
   autoPressEnterAfterInsert: false,
   correctionStyle: 'natural',
-  contextHistory: [],
   styleSample: ''
 }
 
@@ -25,10 +24,4 @@ export function getSettings(): AppSettings {
 export function saveSettings(patch: Partial<AppSettings>): AppSettings {
   store.set(patch)
   return store.store
-}
-
-export function pushHistory(line: string): void {
-  const history = store.get('contextHistory')
-  const updated = [...history, line].slice(-30)
-  store.set('contextHistory', updated)
 }

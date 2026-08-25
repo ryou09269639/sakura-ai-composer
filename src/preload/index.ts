@@ -5,9 +5,7 @@ import type {
   CorrectRequest,
   CorrectResponse,
   InsertTextRequest,
-  InsertTextResult,
-  PredictRequest,
-  PredictResponse
+  InsertTextResult
 } from '@shared/types'
 
 const api = {
@@ -15,9 +13,6 @@ const api = {
 
   saveSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke(IpcChannels.SaveSettings, patch),
-
-  predictCompletion: (req: PredictRequest): Promise<PredictResponse> =>
-    ipcRenderer.invoke(IpcChannels.Predict, req),
 
   correctText: (req: CorrectRequest): Promise<CorrectResponse> =>
     ipcRenderer.invoke(IpcChannels.Correct, req),

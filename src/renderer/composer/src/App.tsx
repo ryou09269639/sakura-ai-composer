@@ -2,29 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppSettings, CorrectionStyle } from '@shared/types'
 import SettingsPanel from './SettingsPanel'
 
-const PROCESS_DEBOUNCE_MS = 450
-
 export default function App(): JSX.Element {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [draft, setDraft] = useState('')
-  // draftに続けて提案される「そのまま採用できる続き」。IMEの予測変換候補に相当し、
-  // draft末尾に選択状態で表示することで、→キーで確定（採用）、入力を続ければ自然に消える。
-  const [completion, setCompletion] = useState('')
-  const [processing, setProcessing] = useState(false)
   const [targetLabel, setTargetLabel] = useState<string | null>(null)
   const [status, setStatus] = useState<{ kind: 'info' | 'error'; text: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const processSeq = useRef(0)
 
   useEffect(() => {
     window.sakuraApi.getSettings().then(setSettings)
     const unsubscribe = window.sakuraApi.onComposerShown((label) => {
       setTargetLabel(label)
       setDraft('')
-      setCompletion('')
       setStatus(null)
       window.sakuraApi.getSettings().then(setSettings)
       requestAnimationFrame(() => textareaRef.current?.focus())
@@ -34,49 +26,15 @@ export default function App(): JSX.Element {
 
   const apiReady = Boolean(settings?.apiBaseUrl && settings?.apiKey)
 
-  useEffect(() => {
-    if (!apiReady) {
-      setCompletion('')
-      return
-    }
-    const seq = ++processSeq.current
-    const timer = setTimeout(async () => {
-      setProcessing(true)
-      try {
-        const history = settings?.contextHistory ?? []
-        const res = await window.sakuraApi.predictCompletion({
-          draft,
-          history,
-          style: settings!.correctionStyle
-        })
-        if (seq === processSeq.current) setCompletion(res.completion)
-      } catch {
-        // 補完はベストエフォート。失敗しても入力は継続できる。
-      } finally {
-        if (seq === processSeq.current) setProcessing(false)
-      }
-    }, PROCESS_DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, apiReady])
-
-  // 提案（draftの直後〜末尾）を選択状態で表示し、続きの文字として見えるようにする
-  useEffect(() => {
-    if (!completion) return
-    textareaRef.current?.setSelectionRange(draft.length, draft.length + completion.length)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [completion])
-
   const submit = useCallback(async () => {
-    const finalDraft = draft + completion
-    if (!finalDraft.trim() || submitting || !settings) return
+    if (!draft.trim() || submitting || !settings) return
     setSubmitting(true)
     setStatus({ kind: 'info', text: '送信中…' })
-    let finalText = finalDraft
+    let finalText = draft
     try {
       if (apiReady) {
-        const res = await window.sakuraApi.correctText({ draft: finalDraft, style: settings.correctionStyle })
-        finalText = res.corrected || finalDraft
+        const res = await window.sakuraApi.correctText({ draft, style: settings.correctionStyle })
+        finalText = res.corrected || draft
       }
     } catch {
       setStatus({ kind: 'error', text: '校正に失敗したため、未校正のテキストで送信します。' })
@@ -93,9 +51,8 @@ export default function App(): JSX.Element {
       return
     }
     setDraft('')
-    setCompletion('')
     setStatus({ kind: 'info', text: result.message })
-  }, [draft, completion, submitting, settings, apiReady])
+  }, [draft, submitting, settings, apiReady])
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -104,25 +61,12 @@ export default function App(): JSX.Element {
         window.sakuraApi.hideComposer()
         return
       }
-      if (e.key === 'ArrowRight' && completion) {
-        const ta = e.currentTarget
-        const suggestionSelected =
-          ta.selectionStart === draft.length && ta.selectionEnd === draft.length + completion.length
-        if (suggestionSelected) {
-          e.preventDefault()
-          const merged = draft + completion
-          setDraft(merged)
-          setCompletion('')
-          requestAnimationFrame(() => ta.setSelectionRange(merged.length, merged.length))
-          return
-        }
-      }
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         submit()
       }
     },
-    [draft, completion, submit]
+    [submit]
   )
 
   if (showSettings || !settings) {
@@ -150,16 +94,11 @@ export default function App(): JSX.Element {
       <textarea
         ref={textareaRef}
         className="draft"
-        value={draft + completion}
-        placeholder="チャットの文章を入力… (続きは→キーで採用、Enterで送信、Shift+Enterで改行)"
-        onChange={(e) => {
-          setDraft(e.target.value)
-          setCompletion('')
-        }}
+        value={draft}
+        placeholder="チャットの文章を入力… (Enterで送信、Shift+Enterで改行)"
+        onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
       />
-
-      {processing && !completion && <div className="hint">考え中…</div>}
 
       {!apiReady && (
         <div className="hint warn">
@@ -170,7 +109,7 @@ export default function App(): JSX.Element {
       {status && <div className={`status ${status.kind}`}>{status.text}</div>}
 
       <div className="footer">
-        <button className="send" disabled={!(draft + completion).trim() || submitting} onClick={submit}>
+        <button className="send" disabled={!draft.trim() || submitting} onClick={submit}>
           送信 (Enter)
         </button>
       </div>

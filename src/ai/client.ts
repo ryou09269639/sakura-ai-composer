@@ -119,45 +119,6 @@ function styleSampleBlock(settings: AppSettings): string {
 }
 
 /**
- * IMEの予測変換のように、入力中の文章に続けて「そのまま採用できる続き」を1つだけ提案する。
- * 既に入力済みの部分は書き換えず、続きの断片だけを返す（GitHub Copilotのインライン補完と同じ考え方）。
- */
-export async function predictCompletion(
-  settings: AppSettings,
-  history: string[],
-  draft: string,
-  style: CorrectionStyle,
-  signal?: AbortSignal
-): Promise<string> {
-  const recentHistory = history.slice(-10)
-
-  const instruction =
-    'あなたは配信・会議のライブチャット入力を支援するIMEです。ユーザーが入力中の文章に続けて、' +
-    'そのまま採用できる自然な続きを1つだけ考えてください。ユーザーがすでに入力した部分は絶対に' +
-    '繰り返さず、続きの断片だけを返してください。会話の流れがあればその話題に沿った内容にし、' +
-    styleGuide[style] +
-    styleSampleBlock(settings) +
-    ' 必ず次のJSON形式のみで応答してください（説明文は不要）: {"completion": "続きの文章"}'
-
-  const messages: ChatMessage[] = [
-    { role: 'system', content: instruction },
-    {
-      role: 'user',
-      content:
-        (recentHistory.length ? `会話の流れ:\n${recentHistory.join('\n')}\n\n` : '') +
-        `入力中の文章: ${draft || '(空)'}`
-    }
-  ]
-
-  const raw = await callChatCompletions(settings, messages, 0.5, signal)
-  const parsed = safeJsonParse<{ completion?: string }>(raw)
-  let completion = parsed?.completion?.trim() ?? ''
-  // モデルが入力済みの部分まで繰り返してしまった場合は、その分を取り除く
-  if (draft && completion.startsWith(draft)) completion = completion.slice(draft.length)
-  return completion.trim()
-}
-
-/**
  * 送信直前に、確定した文章の誤変換・誤字脱字・文脈的な不自然さだけを補正する。
  */
 export async function correctText(

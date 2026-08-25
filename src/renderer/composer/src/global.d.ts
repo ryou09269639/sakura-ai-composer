@@ -3,9 +3,7 @@ import type {
   CorrectRequest,
   CorrectResponse,
   InsertTextRequest,
-  InsertTextResult,
-  PredictRequest,
-  PredictResponse
+  InsertTextResult
 } from '@shared/types'
 
 declare global {
@@ -13,7 +11,6 @@ declare global {
     sakuraApi: {
       getSettings: () => Promise<AppSettings>
       saveSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>
-      predictCompletion: (req: PredictRequest) => Promise<PredictResponse>
       correctText: (req: CorrectRequest) => Promise<CorrectResponse>
       insertText: (req: InsertTextRequest) => Promise<InsertTextResult>
       hideComposer: () => void

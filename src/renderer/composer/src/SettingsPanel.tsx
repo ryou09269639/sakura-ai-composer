@@ -69,8 +69,8 @@ export default function SettingsPanel({ initial, onClose, onSaved }: Props): JSX
     <div className="composer settings">
       <div className="titlebar">
         <span>設定</span>
-        <button className="icon-btn" onClick={onClose} title="閉じる">
-          ✕
+        <button className="close-pill" onClick={onClose} title="閉じる">
+          閉じる
         </button>
       </div>
 
