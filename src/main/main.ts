@@ -12,10 +12,16 @@ import {
 import { join } from 'path'
 import { fileURLToPath } from 'url'
 import { IpcChannels } from '@shared/ipc-channels'
-import type { AppSettings, InsertTextRequest, InsertTextResult, ProcessDraftRequest } from '@shared/types'
+import type {
+  AppSettings,
+  CorrectRequest,
+  InsertTextRequest,
+  InsertTextResult,
+  PredictRequest
+} from '@shared/types'
 import { toErrorMessage } from '@shared/errors'
 import { getSettings, saveSettings, pushHistory } from './settings'
-import { processDraft } from '@ai/client'
+import { correctText, predictCompletion } from '@ai/client'
 import { captureActiveWindow, insertTextIntoWindow } from './insert'
 import type { ActiveWindowHandle } from './platform'
 
@@ -62,7 +68,7 @@ function registerHotkey(hotkey: string): boolean {
 function createComposerWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 460,
-    height: 320,
+    height: 300,
     show: false,
     frame: false,
     resizable: false,
@@ -133,24 +139,24 @@ function registerIpcHandlers(): void {
     return saved
   })
 
-  let inFlightProcessController: AbortController | null = null
+  let inFlightPredictController: AbortController | null = null
 
-  ipcMain.handle(IpcChannels.ProcessDraft, async (_e, req: ProcessDraftRequest) => {
-    inFlightProcessController?.abort()
+  ipcMain.handle(IpcChannels.Predict, async (_e, req: PredictRequest) => {
+    inFlightPredictController?.abort()
     const controller = new AbortController()
-    inFlightProcessController = controller
+    inFlightPredictController = controller
     try {
       const settings = getSettings()
-      return await processDraft(
-        { ...settings, correctionStyle: req.style },
-        req.history,
-        req.draft,
-        req.includeSuggestions,
-        controller.signal
-      )
+      const completion = await predictCompletion(settings, req.history, req.draft, req.style, controller.signal)
+      return { completion }
     } finally {
-      if (inFlightProcessController === controller) inFlightProcessController = null
+      if (inFlightPredictController === controller) inFlightPredictController = null
     }
+  })
+
+  ipcMain.handle(IpcChannels.Correct, async (_e, req: CorrectRequest) => {
+    const settings = getSettings()
+    return await correctText(settings, req.draft, req.style)
   })
 
   ipcMain.handle(

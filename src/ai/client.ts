@@ -106,79 +106,83 @@ function safeJsonParse<T>(raw: string): T | null {
   }
 }
 
+function styleSampleBlock(settings: AppSettings): string {
+  const styleSample = settings.styleSample?.trim()
+  if (!styleSample) return ''
+  return (
+    '\n\n参考として、ユーザー本人が過去に書いた文章のサンプルを示します。' +
+    '一言一句真似る必要はありませんが、口調・語彙選び・言い回しの癖を汲み取り、' +
+    'このユーザーが書いたと自然に思える文章にしてください。\n---\n' +
+    styleSample.slice(-STYLE_SAMPLE_MAX_CHARS) +
+    '\n---'
+  )
+}
+
 /**
- * タイポ修正と「次の一言」候補を1回のAPI呼び出しにまとめて取得する。
- * 往復回数を減らすことでレスポンス速度を上げ、修正後の文面をもとに候補を作らせることで
- * 提案の一貫性（予測精度）も高める。
+ * IMEの予測変換のように、入力中の文章に続けて「そのまま採用できる続き」を1つだけ提案する。
+ * 既に入力済みの部分は書き換えず、続きの断片だけを返す（GitHub Copilotのインライン補完と同じ考え方）。
  */
-export async function processDraft(
+export async function predictCompletion(
   settings: AppSettings,
   history: string[],
   draft: string,
-  includeSuggestions: boolean,
+  style: CorrectionStyle,
   signal?: AbortSignal
-): Promise<{ corrected: string; changed: boolean; suggestions: string[] }> {
-  const wantsCorrection = draft.trim().length > 0
-  const wantsSuggestions = includeSuggestions
-
-  // 下書きが空でも、聞き専ユーザー向けの「次の一言」候補は履歴だけから生成できるため、
-  // 提案が不要なとき（＝校正するものも提案するものも無いとき）だけ呼び出しをスキップする。
-  if (!wantsCorrection && !wantsSuggestions) {
-    return { corrected: '', changed: false, suggestions: [] }
-  }
-
+): Promise<string> {
   const recentHistory = history.slice(-10)
 
-  const jsonFields: string[] = []
-  if (wantsCorrection) jsonFields.push('"corrected": "修正後の文章", "changed": true|false')
-  if (wantsSuggestions) jsonFields.push('"suggestions": ["候補1", "候補2", "候補3"]')
-  const jsonSchema = `{${jsonFields.join(', ')}}`
-
-  let instruction = 'あなたは配信・会議のライブチャット入力を支援するアシスタントです。'
-  if (wantsCorrection) {
-    instruction +=
-      '入力された下書きについて、日本語の誤変換・誤字脱字・タイプミスに加えて、' +
-      '主語の欠落や助詞の誤りなど文脈的に意味が通らない・不自然な箇所があれば、自然に読めるように補正してください。' +
-      'ただし、伝えたい内容や言いたいことの趣旨、選んだ語彙・言い回しそのものは尊重し、無関係な書き換えはしないでください。' +
-      styleGuide[settings.correctionStyle]
-  }
-  if (wantsSuggestions) {
-    instruction +=
-      (wantsCorrection ? '加えて、' : '') +
-      '直前の会話の流れを踏まえ、ユーザーが次に打ちそうな短いチャット向けの返信候補を3つ、"suggestions" に入れてください。'
-    if (wantsCorrection) instruction += '下書きを完成させる形の候補も含めてください。'
-  }
-
-  const styleSample = settings.styleSample?.trim()
-  if (styleSample) {
-    instruction +=
-      '\n\n参考として、ユーザー本人が過去に書いた文章のサンプルを示します。' +
-      '一言一句真似る必要はありませんが、口調・語彙選び・言い回しの癖を汲み取り、' +
-      'このユーザーが書いたと自然に思える文章にしてください。\n---\n' +
-      styleSample.slice(-STYLE_SAMPLE_MAX_CHARS) +
-      '\n---'
-  }
-
-  instruction += ` 必ず次のJSON形式のみで応答してください（説明文は不要）: ${jsonSchema}`
+  const instruction =
+    'あなたは配信・会議のライブチャット入力を支援するIMEです。ユーザーが入力中の文章に続けて、' +
+    'そのまま採用できる自然な続きを1つだけ考えてください。ユーザーがすでに入力した部分は絶対に' +
+    '繰り返さず、続きの断片だけを返してください。会話の流れがあればその話題に沿った内容にし、' +
+    styleGuide[style] +
+    styleSampleBlock(settings) +
+    ' 必ず次のJSON形式のみで応答してください（説明文は不要）: {"completion": "続きの文章"}'
 
   const messages: ChatMessage[] = [
     { role: 'system', content: instruction },
     {
       role: 'user',
       content:
-        (wantsSuggestions && recentHistory.length ? `直近の会話:\n${recentHistory.join('\n')}\n\n` : '') +
-        `下書き: ${draft || '(空)'}`
+        (recentHistory.length ? `会話の流れ:\n${recentHistory.join('\n')}\n\n` : '') +
+        `入力中の文章: ${draft || '(空)'}`
     }
   ]
 
-  const raw = await callChatCompletions(settings, messages, wantsSuggestions ? 0.5 : 0.2, signal)
-  const parsed = safeJsonParse<{ corrected?: string; changed?: boolean; suggestions?: string[] }>(raw)
-  const corrected = wantsCorrection ? parsed?.corrected?.trim() || draft : ''
-  const suggestions = wantsSuggestions
-    ? (parsed?.suggestions || [])
-        .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
-        .slice(0, 3)
-    : []
+  const raw = await callChatCompletions(settings, messages, 0.5, signal)
+  const parsed = safeJsonParse<{ completion?: string }>(raw)
+  let completion = parsed?.completion?.trim() ?? ''
+  // モデルが入力済みの部分まで繰り返してしまった場合は、その分を取り除く
+  if (draft && completion.startsWith(draft)) completion = completion.slice(draft.length)
+  return completion.trim()
+}
 
-  return { corrected, changed: wantsCorrection && corrected !== draft, suggestions }
+/**
+ * 送信直前に、確定した文章の誤変換・誤字脱字・文脈的な不自然さだけを補正する。
+ */
+export async function correctText(
+  settings: AppSettings,
+  draft: string,
+  style: CorrectionStyle,
+  signal?: AbortSignal
+): Promise<{ corrected: string; changed: boolean }> {
+  if (!draft.trim()) return { corrected: draft, changed: false }
+
+  const instruction =
+    '入力された文章について、日本語の誤変換・誤字脱字・タイプミスに加えて、' +
+    '主語の欠落や助詞の誤りなど文脈的に意味が通らない・不自然な箇所があれば、自然に読めるように補正してください。' +
+    'ただし、伝えたい内容や言いたいことの趣旨、選んだ語彙・言い回しそのものは尊重し、無関係な書き換えはしないでください。' +
+    styleGuide[style] +
+    styleSampleBlock(settings) +
+    ' 必ず次のJSON形式のみで応答してください（説明文は不要）: {"corrected": "修正後の文章", "changed": true|false}'
+
+  const messages: ChatMessage[] = [
+    { role: 'system', content: instruction },
+    { role: 'user', content: `文章: ${draft}` }
+  ]
+
+  const raw = await callChatCompletions(settings, messages, 0.2, signal)
+  const parsed = safeJsonParse<{ corrected?: string; changed?: boolean }>(raw)
+  const corrected = parsed?.corrected?.trim() || draft
+  return { corrected, changed: corrected !== draft }
 }

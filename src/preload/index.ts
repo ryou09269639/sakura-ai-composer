@@ -2,10 +2,12 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
 import type {
   AppSettings,
+  CorrectRequest,
+  CorrectResponse,
   InsertTextRequest,
   InsertTextResult,
-  ProcessDraftRequest,
-  ProcessDraftResponse
+  PredictRequest,
+  PredictResponse
 } from '@shared/types'
 
 const api = {
@@ -14,8 +16,11 @@ const api = {
   saveSettings: (patch: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke(IpcChannels.SaveSettings, patch),
 
-  processDraft: (req: ProcessDraftRequest): Promise<ProcessDraftResponse> =>
-    ipcRenderer.invoke(IpcChannels.ProcessDraft, req),
+  predictCompletion: (req: PredictRequest): Promise<PredictResponse> =>
+    ipcRenderer.invoke(IpcChannels.Predict, req),
+
+  correctText: (req: CorrectRequest): Promise<CorrectResponse> =>
+    ipcRenderer.invoke(IpcChannels.Correct, req),
 
   insertText: (req: InsertTextRequest): Promise<InsertTextResult> =>
     ipcRenderer.invoke(IpcChannels.InsertText, req),

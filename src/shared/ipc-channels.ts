@@ -1,5 +1,6 @@
 export const IpcChannels = {
-  ProcessDraft: 'ai:process-draft',
+  Predict: 'ai:predict',
+  Correct: 'ai:correct',
   InsertText: 'insert:text',
   GetSettings: 'settings:get',
   SaveSettings: 'settings:save',

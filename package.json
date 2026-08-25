@@ -1,7 +1,7 @@
 {
   "name": "sakura-ai-composer",
   "version": "0.1.0",
-  "description": "配信/会議チャット向け タイポ修正・次発言補完コンポーザー (Electron, Win/Mac/Linux)",
+  "description": "配信/会議チャット向け タイポ修正・インライン文章補完コンポーザー (Electron, Win/Mac/Linux)",
   "private": true,
   "type": "module",
   "main": "./out/main/main.js",
