@@ -9,7 +9,8 @@ const baseSettings: AppSettings = {
   toggleHotkey: 'Alt+Space',
   autoPressEnterAfterInsert: false,
   correctionStyle: 'natural',
-  contextHistory: []
+  contextHistory: [],
+  styleSample: ''
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -141,6 +142,23 @@ describe('processDraft', () => {
     const assertion = expect(promise).rejects.toThrow(/タイムアウト/)
     await vi.advanceTimersByTimeAsync(12_000)
     await assertion
+  })
+
+  it('styleSampleが設定されていればsystemプロンプトに文体サンプルとして含める', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse(chatBody(JSON.stringify({ corrected: '直りました', changed: true })))
+    )
+
+    await processDraft(
+      { ...baseSettings, styleSample: '今日もお疲れ様〜！これから飯食う' },
+      [],
+      'なおりました',
+      false
+    )
+
+    const requestBody = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))
+    const systemMessage = requestBody.messages.find((m: { role: string }) => m.role === 'system')
+    expect(systemMessage.content).toContain('今日もお疲れ様〜！これから飯食う')
   })
 
   it('外部signalがabortされると新しいリクエストを優先してキャンセルされる', async () => {

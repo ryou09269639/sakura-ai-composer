@@ -17,6 +17,9 @@ const styleGuide: Record<CorrectionStyle, string> = {
 }
 
 const REQUEST_TIMEOUT_MS = 12_000
+// 文体サンプルが長すぎるとプロンプトが肥大化しOSSモデルのコンテキストを圧迫するため、
+// 直近（＝より参考になりやすい）部分のみを使う。
+const STYLE_SAMPLE_MAX_CHARS = 3000
 
 async function callChatCompletions(
   settings: AppSettings,
@@ -143,6 +146,17 @@ export async function processDraft(
       '直前の会話の流れを踏まえ、ユーザーが次に打ちそうな短いチャット向けの返信候補を3つ、"suggestions" に入れてください。'
     if (wantsCorrection) instruction += '下書きを完成させる形の候補も含めてください。'
   }
+
+  const styleSample = settings.styleSample?.trim()
+  if (styleSample) {
+    instruction +=
+      '\n\n参考として、ユーザー本人が過去に書いた文章のサンプルを示します。' +
+      '一言一句真似る必要はありませんが、口調・語彙選び・言い回しの癖を汲み取り、' +
+      'このユーザーが書いたと自然に思える文章にしてください。\n---\n' +
+      styleSample.slice(-STYLE_SAMPLE_MAX_CHARS) +
+      '\n---'
+  }
+
   instruction += ` 必ず次のJSON形式のみで応答してください（説明文は不要）: ${jsonSchema}`
 
   const messages: ChatMessage[] = [

@@ -48,7 +48,11 @@ YouTube/Twitch/ニコニコ/Zoom/Teams/VRChatなど「テキスト欄にペー�
 | Windows | PowerShell + Win32 API (SetForegroundWindow / SendKeys) | 追加インストール不要 |
 | macOS | AppleScript (System Events) | 初回に「アクセシビリティ」権限の許可が必要（設定 > プライバシーとセキュリティ） |
 | Linux (X11) | `xdotool` | `sudo apt install xdotool` などで事前インストールが必要 |
-| Linux (Wayland) | 未対応 | ウィンドウ自動操作ができないため、失敗メッセージを表示（コピー先の手動貼り付けにフォールバック） |
+| Linux (Wayland) | `ydotool` (`/dev/uinput`経由のキー送出) | `sudo apt install ydotool` に加え、常駐サービス `ydotoold` の起動が必要（`systemctl --user enable --now ydotool` など）。Discord・Slack等のWaylandネイティブアプリでも動作します |
+
+Wayland環境では、セキュリティモデル上「特定のウィンドウID」を指定してフォーカスを戻すAPIが無いため、
+コンポーザー窓を閉じた際にコンポジタが直前のウィンドウへフォーカスを戻す挙動に頼っています。
+そのため、コンポーザーを呼び出す直前に貼り付け先のチャット欄をクリックしてフォーカスしておいてください。
 
 VRChatはデスクトップモードのチャットボックス（Enterでテキスト入力欄が出るもの）を想定した“おまけ”対応です。
 ゲームウィンドウが管理者権限で起動している場合、Windowsの `SendKeys` が届かないことがあります
@@ -71,7 +75,7 @@ VRChatはデスクトップモードのチャットボックス（Enterでテキ
 ## 既知の制限（MVP時点）
 
 - モバイル（Android/iOS）はElectronでは非対応。将来的に別途 React Native 等での実装が必要です。
-- Linux は X11 前提（Wayland非対応）。Wayland環境では自動貼り付けは失敗しますが、テキストはクリップボードにコピーされるため手動貼り付けは可能です。
+- Linux の自動貼り付けはX11では`xdotool`、Waylandでは`ydotool`(+`ydotoold`常駐)が必要です。未インストール・未起動の場合はエラーメッセージで案内されますが、テキストは常にクリップボードにコピーされるため手動貼り付け（`Ctrl+V`）でも代替できます。
 - アイコンはプレースホルダー（`build/icon.png`）です。配布前に正式なアイコンへ差し替えてください。
 
 ## ディレクトリ構成

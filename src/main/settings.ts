@@ -1,14 +1,16 @@
 import Store from 'electron-store'
 import type { AppSettings } from '@shared/types'
+import { DEFAULT_AI_ENGINE_BASE_URL, DEFAULT_AI_ENGINE_MODEL } from '@shared/default-settings'
 
 const defaults: AppSettings = {
-  apiBaseUrl: '',
+  apiBaseUrl: DEFAULT_AI_ENGINE_BASE_URL,
   apiKey: '',
-  model: 'gpt-4o-mini',
+  model: DEFAULT_AI_ENGINE_MODEL,
   toggleHotkey: 'Alt+Space',
   autoPressEnterAfterInsert: false,
   correctionStyle: 'natural',
-  contextHistory: []
+  contextHistory: [],
+  styleSample: ''
 }
 
 const store = new Store<AppSettings>({

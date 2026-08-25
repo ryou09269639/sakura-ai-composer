@@ -162,6 +162,16 @@ body,
   cursor: default;
 }
 
+.settings-body {
+  -webkit-app-region: no-drag;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .settings .field {
   -webkit-app-region: no-drag;
   display: flex;
@@ -171,13 +181,20 @@ body,
   color: var(--text-dim);
 }
 .settings .field input,
-.settings .field select {
+.settings .field select,
+.settings .field textarea {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
   padding: 6px 8px;
   font-size: 13px;
+}
+.settings .field textarea.style-sample {
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  line-height: 1.4;
 }
 .settings .field.checkbox {
   flex-direction: row;
