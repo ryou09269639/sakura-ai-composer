@@ -137,7 +137,9 @@ export async function processDraft(
   let instruction = 'あなたは配信・会議のライブチャット入力を支援するアシスタントです。'
   if (wantsCorrection) {
     instruction +=
-      '入力された下書きについて、日本語の誤変換・誤字脱字・タイプミスだけを修正し、文意や語彙、文体は変えないでください。' +
+      '入力された下書きについて、日本語の誤変換・誤字脱字・タイプミスに加えて、' +
+      '主語の欠落や助詞の誤りなど文脈的に意味が通らない・不自然な箇所があれば、自然に読めるように補正してください。' +
+      'ただし、伝えたい内容や言いたいことの趣旨、選んだ語彙・言い回しそのものは尊重し、無関係な書き換えはしないでください。' +
       styleGuide[settings.correctionStyle]
   }
   if (wantsSuggestions) {

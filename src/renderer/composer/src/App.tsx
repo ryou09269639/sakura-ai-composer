@@ -54,7 +54,17 @@ export default function App(): JSX.Element {
           includeSuggestions: true
         })
         if (seq === processSeq.current) {
-          setCorrected(res.changed ? res.corrected : null)
+          if (res.changed && settings?.autoApplyCorrection) {
+            setDraft(res.corrected)
+            setCorrected(null)
+            setStatus({ kind: 'info', text: 'AIが自動補正しました' })
+            requestAnimationFrame(() => {
+              const len = res.corrected.length
+              textareaRef.current?.setSelectionRange(len, len)
+            })
+          } else {
+            setCorrected(res.changed ? res.corrected : null)
+          }
           setSuggestions(res.suggestions)
         }
       } catch {

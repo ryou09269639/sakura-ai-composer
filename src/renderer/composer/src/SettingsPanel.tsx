@@ -20,6 +20,9 @@ export default function SettingsPanel({ initial, onClose, onSaved }: Props): JSX
     initial?.correctionStyle ?? 'natural'
   )
   const [styleSample, setStyleSample] = useState(initial?.styleSample ?? '')
+  const [autoApplyCorrection, setAutoApplyCorrection] = useState(
+    initial?.autoApplyCorrection ?? false
+  )
   const [saving, setSaving] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
 
@@ -35,7 +38,8 @@ export default function SettingsPanel({ initial, onClose, onSaved }: Props): JSX
       toggleHotkey: toggleHotkey.trim(),
       autoPressEnterAfterInsert,
       correctionStyle,
-      styleSample: styleSample.trim()
+      styleSample: styleSample.trim(),
+      autoApplyCorrection
     })
     setSaving(false)
     onSaved(saved)
@@ -121,6 +125,15 @@ export default function SettingsPanel({ initial, onClose, onSaved }: Props): JSX
           <span>呼び出しホットキー（保存すると即座に反映されます）</span>
           <input value={toggleHotkey} onChange={(e) => setToggleHotkey(e.target.value)} />
           {hotkeyError && <span className="field-error">{hotkeyError}</span>}
+        </label>
+
+        <label className="field checkbox">
+          <input
+            type="checkbox"
+            checked={autoApplyCorrection}
+            onChange={(e) => setAutoApplyCorrection(e.target.checked)}
+          />
+          <span>AI修正案を自動的に下書きへ反映する（OFFの場合はTabキーで採用）</span>
         </label>
 
         <label className="field checkbox">

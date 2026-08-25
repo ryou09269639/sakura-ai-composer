@@ -8,6 +8,8 @@ export interface AppSettings {
   contextHistory: string[]
   /** ユーザー本人の過去の発言サンプル（文体模写の参考用。貼り付けたチャット履歴など） */
   styleSample: string
+  /** trueの場合、AI修正案をTabキーの採用を待たず自動的に下書きへ反映する */
+  autoApplyCorrection: boolean
 }
 
 export type CorrectionStyle = 'natural' | 'polite' | 'casual'

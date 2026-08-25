@@ -10,7 +10,8 @@ const defaults: AppSettings = {
   autoPressEnterAfterInsert: false,
   correctionStyle: 'natural',
   contextHistory: [],
-  styleSample: ''
+  styleSample: '',
+  autoApplyCorrection: false
 }
 
 const store = new Store<AppSettings>({
